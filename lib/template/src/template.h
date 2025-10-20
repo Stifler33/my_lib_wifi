@@ -9,9 +9,10 @@
 
 #define NAME_CONFIG_WIFI "config_wifi"
 
-void initial_wifi();
-void save_config_wifi(String ssid, String password, const char* hostname="", wifi_mode_t wifi_mode=WIFI_STA);
 
+void init_stif();
+void save_config_wifi(String ssid, String password, const char* hostname="", wifi_mode_t wifi_mode=WIFI_STA);
+void set_pin_reset(uint8_t pin);
 void loop_status_wifi();
 
 void arduino_ota_initial();

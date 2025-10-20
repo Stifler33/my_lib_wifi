@@ -9,6 +9,7 @@ Preferences members;
 WebServer server(80);
 void handleRoot();
 void handleSaveConfig();
+uint8_t pin_reset;
 
 void led_on(){
   if (!flag_led_status){
@@ -33,6 +34,8 @@ void switch_led_status(){
 // таймер для моргания светодиодом
 GTimer<millis> tmr_blink(100, false, GTMode::Timeout);
 
+GTimer<millis> tmr_reset(2000, false, GTMode::Timeout);
+
 /**
  * Функция задает параметры по умолчанию если конфигурации нет в памяти
  */
@@ -46,38 +49,42 @@ void init_config_wifi(){
   members.putString("ssid", "");
   members.putString("password", "");
   members.putString("hostname", "");
-  members.putInt("wifi_mode", 1);  
+  members.putInt("wifi_mode", WIFI_AP);  
   members.end();
   members.begin(NAME_CONFIG_WIFI, true);
 }
 
 /*
- * Функция реализует подключение к WiFi и задает заданный режим работы WiFi
+ * Функция инициализирует все необходимые компоненты:
  *
- * Все данные для подключения она достает из памяти
+ * подключение к WiFi, задает режим работы WiFi
+ * 
+ * пин для сброса конфигурации
+ *
+ * Данные для подключения она достает из памяти
  *  
  * функция не блокирующая и она ничего не ждет
 */
-void initial_wifi(){  
+void init_stif(){
   pinMode(2, OUTPUT);
+  pinMode(pin_reset, INPUT);
+
   Serial.begin(115200);
   init_config_wifi();  
   String ssid = members.getString("ssid", "");
   wifi_mode_t wifi_mode = wifi_mode_t(members.getInt("wifi_mode", 0));
-  const char* hostname = members.getString("hostname", "").c_str();  
+  String hostname = members.getString("hostname", "");  
   String password = members.getString("password", "");
   members.end();
 
-  Serial.println("hostname " + String(hostname));
-
   if (hostname != ""){
-    WiFi.setHostname(hostname);
+    WiFi.setHostname(hostname.c_str());    
   }
   
-  if (ssid != ""){
+  if (wifi_mode == WIFI_STA){
     WiFi.mode(wifi_mode);
     WiFi.begin(ssid, password);
-  }else{
+  }else if (wifi_mode == WIFI_AP){
     WiFi.mode(WIFI_AP);
     WiFi.softAP("ESP32_APP");
     server.on("/", HTTP_GET, handleRoot);
@@ -110,12 +117,27 @@ void blink_led(int timeout){
 }
 
 /**
+ * цикл для отслеживания нажатия на кнопку reset
+ */
+void reset_loop(){
+  if (digitalRead(pin_reset) && !tmr_reset.running()){
+    tmr_reset.start();
+  }
+  if (digitalRead(pin_reset) && tmr_reset){
+    led_off();
+    save_config_wifi("", "", "", WIFI_AP);
+    ESP.restart();
+  }
+}
+
+/**
  * Цикл для отслеживания подключения к Wifi и OTA
  */
-void loop_status_wifi(){ 
+void loop_status_wifi(){
+  reset_loop();
   switch (WiFi.getMode())
   {
-  case WIFI_STA:
+  case WIFI_STA:    
     if (WiFi.status() != WL_CONNECTED){
       blink_led(100);      
     }else{
@@ -196,16 +218,7 @@ void handleSaveConfig() {
         hostname = server.arg(i);
       }
     }
-
-    Serial.println("Получены данные:");
-    Serial.print("SSID: "); Serial.println(ssid);
-    Serial.print("Пароль: "); Serial.println(password.length() > 0 ? "Скрыт" : "Нет"); // Не выводим пароль
-    Serial.print("Hostname: "); Serial.println(hostname);
     
-    // ❗ Здесь должен быть ваш код для:
-    // 1. Сохранения ssid, password, hostname (например, в EEPROM/SPIFFS/LittleFS)
-    // 2. Попытки подключения к Wi-Fi сети (WiFi.begin(ssid.c_str(), password.c_str());)
-    // 3. Установки имени хоста (WiFi.setHostname(hostname.c_str());)
     save_config_wifi(ssid, password, hostname.c_str());
 
     // Ответ клиенту после сохранения
@@ -213,7 +226,7 @@ void handleSaveConfig() {
     server.send(200, "text/html; charset=UTF-8", response);
     
     // В реальном проекте, здесь вы обычно делаете перезагрузку или переключаете режим WiFi
-    delay(2000);
+    delay(1000);
     ESP.restart();
 
   } else {
@@ -221,5 +234,15 @@ void handleSaveConfig() {
     server.sendHeader("Location", "/");
     server.send(302, "text/plain", "");
   }
+}
+
+/**
+ * Функция устанавливает пин для сброса конфигурации подключения к Wifi
+ * 
+ * ее надо обязательно запускать в блоке setup
+ * @param pin пин для сброса конфигурации
+ */
+void set_pin_reset(uint8_t pin){
+  pin_reset = pin;
 }
 

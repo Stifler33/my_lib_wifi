@@ -1,3 +1,4 @@
+// HTML страница для воода ssid, пароля и hostname
 const char* HTML_CONTENT = R"raw_html(
 <!DOCTYPE html>
 <html>
@@ -18,7 +19,7 @@ const char* HTML_CONTENT = R"raw_html(
 <body>
 
 <div class="container">
-    <h2>Настройка ESP32</h2>
+    <h2>Настройка Stifler_ESP</h2>
     
     <form action="/save_config" method="POST">
         
