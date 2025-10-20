@@ -1,10 +1,15 @@
 #include "template.h"
+#include "html_content.h"
 
 bool flag_led_status = false;
 
 WiFiClient wifiClient;
 PubSubClient client(wifiClient);
 Preferences members;
+WebServer server(80);
+void handleRoot();
+void handleSaveConfig();
+
 void led_on(){
   if (!flag_led_status){
     flag_led_status = true;
@@ -55,12 +60,15 @@ void init_config_wifi(){
 */
 void initial_wifi(){  
   pinMode(2, OUTPUT);
+  Serial.begin(115200);
   init_config_wifi();  
   String ssid = members.getString("ssid", "");
   wifi_mode_t wifi_mode = wifi_mode_t(members.getInt("wifi_mode", 0));
   const char* hostname = members.getString("hostname", "").c_str();  
   String password = members.getString("password", "");
   members.end();
+
+  Serial.println("hostname " + String(hostname));
 
   if (hostname != ""){
     WiFi.setHostname(hostname);
@@ -72,6 +80,9 @@ void initial_wifi(){
   }else{
     WiFi.mode(WIFI_AP);
     WiFi.softAP("ESP32_APP");
+    server.on("/", HTTP_GET, handleRoot);
+    server.on("/save_config", HTTP_POST, handleSaveConfig);
+    server.begin();
   }
 
 }
@@ -101,13 +112,24 @@ void blink_led(int timeout){
 /**
  * Цикл для отслеживания подключения к Wifi и OTA
  */
-void loop_status_wifi(){    
-  if (WiFi.status() != WL_CONNECTED){
-    blink_led(100);
-  }else{
-    led_on();
-    ArduinoOTA.handle();
-  }    
+void loop_status_wifi(){ 
+  switch (WiFi.getMode())
+  {
+  case WIFI_STA:
+    if (WiFi.status() != WL_CONNECTED){
+      blink_led(100);      
+    }else{
+      led_on();
+      ArduinoOTA.handle();
+    }
+    break;
+  case WIFI_AP:
+    server.handleClient();
+    blink_led(500);
+    break;
+  default:
+    break;
+  }
 }
 
 uint32_t last_ota_time = 0;
@@ -152,3 +174,52 @@ void arduino_ota_initial(){
 
   ArduinoOTA.begin();
 }
+
+void handleRoot() {
+  server.send(200, "text/html; charset=UTF-8", HTML_CONTENT);
+}
+
+void handleSaveConfig() {
+  String ssid = "";
+  String password = "";
+  String hostname = "";
+
+  // Проверяем, что это POST-запрос и что есть аргументы (данные формы)
+  if (server.method() == HTTP_POST) {
+    // Проходим по всем аргументам (полям формы)
+    for (int i = 0; i < server.args(); i++) {
+      if (server.argName(i) == "ssid") {
+        ssid = server.arg(i);
+      } else if (server.argName(i) == "password") {
+        password = server.arg(i);
+      } else if (server.argName(i) == "hostname") {
+        hostname = server.arg(i);
+      }
+    }
+
+    Serial.println("Получены данные:");
+    Serial.print("SSID: "); Serial.println(ssid);
+    Serial.print("Пароль: "); Serial.println(password.length() > 0 ? "Скрыт" : "Нет"); // Не выводим пароль
+    Serial.print("Hostname: "); Serial.println(hostname);
+    
+    // ❗ Здесь должен быть ваш код для:
+    // 1. Сохранения ssid, password, hostname (например, в EEPROM/SPIFFS/LittleFS)
+    // 2. Попытки подключения к Wi-Fi сети (WiFi.begin(ssid.c_str(), password.c_str());)
+    // 3. Установки имени хоста (WiFi.setHostname(hostname.c_str());)
+    save_config_wifi(ssid, password, hostname.c_str());
+
+    // Ответ клиенту после сохранения
+    String response = "<h1>Сохранение завершено!</h1><p>Устройство попытается подключиться к сети: **" + ssid + "** с именем хоста: **" + hostname + "**.</p><p>Отключитесь от сети ESP32_Config и проверьте подключение в мониторе порта.</p>";
+    server.send(200, "text/html; charset=UTF-8", response);
+    
+    // В реальном проекте, здесь вы обычно делаете перезагрузку или переключаете режим WiFi
+    delay(2000);
+    ESP.restart();
+
+  } else {
+    // Если это не POST-запрос, перенаправляем на главную
+    server.sendHeader("Location", "/");
+    server.send(302, "text/plain", "");
+  }
+}
+

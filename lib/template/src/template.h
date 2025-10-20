@@ -5,6 +5,7 @@
 #include <ArduinoOTA.h>
 #include <PubSubClient.h>
 #include <Preferences.h>
+#include <WebServer.h>
 
 #define NAME_CONFIG_WIFI "config_wifi"
 
