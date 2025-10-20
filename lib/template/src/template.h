@@ -12,7 +12,7 @@
 
 void init_stif();
 void save_config_wifi(String ssid, String password, const char* hostname="", wifi_mode_t wifi_mode=WIFI_STA);
-void set_pin_reset(uint8_t pin);
+void set_pin_reset(uint8_t pin, bool true_position_button);
 void loop_status_wifi();
 
 void arduino_ota_initial();

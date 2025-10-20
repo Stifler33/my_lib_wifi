@@ -2,6 +2,7 @@
 #include "html_content.h"
 
 bool flag_led_status = false;
+bool true_position_reset_button = LOW;
 
 WiFiClient wifiClient;
 PubSubClient client(wifiClient);
@@ -29,6 +30,10 @@ void switch_led_status(){
   if (flag_led_status){
     led_off();
   }else led_on();
+}
+
+bool is_press_btn_reset(){
+  return digitalRead(pin_reset) == true_position_reset_button;  
 }
 
 // таймер для моргания светодиодом
@@ -67,7 +72,6 @@ void init_config_wifi(){
 */
 void init_stif(){
   pinMode(2, OUTPUT);
-  pinMode(pin_reset, INPUT);
 
   Serial.begin(115200);
   init_config_wifi();  
@@ -120,13 +124,18 @@ void blink_led(int timeout){
  * цикл для отслеживания нажатия на кнопку reset
  */
 void reset_loop(){
-  if (digitalRead(pin_reset) && !tmr_reset.running()){
-    tmr_reset.start();
+  if (is_press_btn_reset() && !tmr_reset.running()){
+    tmr_reset.start();    
   }
-  if (digitalRead(pin_reset) && tmr_reset){
-    led_off();
-    save_config_wifi("", "", "", WIFI_AP);
-    ESP.restart();
+  if (!is_press_btn_reset()){
+    tmr_reset.stop();
+  }
+  if (tmr_reset){
+    if (is_press_btn_reset()){
+      led_off();
+      save_config_wifi("", "", "", WIFI_AP);
+      ESP.restart();
+    }    
   }
 }
 
@@ -241,8 +250,10 @@ void handleSaveConfig() {
  * 
  * ее надо обязательно запускать в блоке setup
  * @param pin пин для сброса конфигурации
+ * @param true_position_button передаем LOW или HIGH в зависимости от того какое положение считаем нажатым
  */
-void set_pin_reset(uint8_t pin){
+void set_pin_reset(uint8_t pin, bool true_position_button){
   pin_reset = pin;
+  true_position_reset_button = true_position_button;
 }
 
