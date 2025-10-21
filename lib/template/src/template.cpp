@@ -4,12 +4,13 @@
 bool flag_led_status = false;
 bool true_position_reset_button = LOW;
 
-WiFiClient wifiClient;
-PubSubClient client(wifiClient);
 Preferences members;
 WebServer server(80);
 void handleRoot();
 void handleSaveConfig();
+void handle_root_mqtt();
+void handle_save_settings_mqtt();
+void save_settings_mqtt(String address, String user, String password, uint16_t port, String client_id);
 uint8_t pin_reset;
 
 void led_on(){
@@ -59,6 +60,22 @@ void init_config_wifi(){
   members.begin(NAME_CONFIG_WIFI, true);
 }
 
+void init_config_mqtt(){
+  members.begin(NAME_CONFIG_MQTT, true);
+  if (members.isKey("address")){
+    members.end();
+    return;
+  }
+  members.end();
+  members.begin(NAME_CONFIG_MQTT, false);
+  members.putString("address", "");
+  members.putString("user", "");
+  members.putString("password", "");
+  members.putString("client_id", "");
+  members.putInt("port", 1883);
+  members.end();  
+}
+
 /*
  * Функция инициализирует все необходимые компоненты:
  *
@@ -72,9 +89,9 @@ void init_config_wifi(){
 */
 void init_stif(){
   pinMode(2, OUTPUT);
-
   Serial.begin(115200);
-  init_config_wifi();  
+  init_config_mqtt();
+  init_config_wifi();    
   String ssid = members.getString("ssid", "");
   wifi_mode_t wifi_mode = wifi_mode_t(members.getInt("wifi_mode", 0));
   String hostname = members.getString("hostname", "");  
@@ -88,6 +105,9 @@ void init_stif(){
   if (wifi_mode == WIFI_STA){
     WiFi.mode(wifi_mode);
     WiFi.begin(ssid, password);
+    server.on("/", HTTP_GET, handle_root_mqtt);
+    server.on("/save_mqtt_config", HTTP_POST, handle_save_settings_mqtt);
+    server.begin();
   }else if (wifi_mode == WIFI_AP){
     WiFi.mode(WIFI_AP);
     WiFi.softAP("ESP32_APP");
@@ -151,6 +171,7 @@ void loop_status_wifi(){
       blink_led(100);      
     }else{
       led_on();
+      server.handleClient();
       ArduinoOTA.handle();
     }
     break;
@@ -210,6 +231,10 @@ void handleRoot() {
   server.send(200, "text/html; charset=UTF-8", HTML_CONTENT);
 }
 
+void handle_root_mqtt(){
+  server.send(200, "text/html; charset=UTF-8", HTML_MQTT);
+}
+
 void handleSaveConfig() {
   String ssid = "";
   String password = "";
@@ -257,3 +282,51 @@ void set_pin_reset(uint8_t pin, bool true_position_button){
   true_position_reset_button = true_position_button;
 }
 
+void handle_save_settings_mqtt(){
+  String address;
+  uint16_t port;
+  String client_id;
+  String user;
+  String password;
+
+  if (server.method() == HTTP_POST){
+    for (int i=0; i < server.args(); i++){
+      if (server.argName(i) == "mqtt_server"){
+        address = server.arg(i);
+      }
+      if (server.argName(i) == "mqtt_port"){
+        port = server.arg(i).toInt();
+      }
+      if (server.argName(i) == "mqtt_client_id"){
+        client_id = server.arg(i);
+      }
+      if (server.argName(i) == "mqtt_user"){
+        user = server.arg(i);
+      }
+      if (server.argName(i) == "mqtt_pass"){
+        password = server.arg(i);
+      }
+    }
+  }
+
+  String response = String("<h1>Сохранение завершено!</h1>") + \
+  "<p>address: " + address + "</p>" + \
+  "<p>port: " + port + "</p>" + \
+  "<p>user: " + user + "</p>"  + \
+  "<p>password: " + password + "</p>" + \
+  "<p>client_id: " + client_id + "</p>";
+  server.send(200, "text/html; charset=UTF-8", response);
+  
+  save_settings_mqtt(address, user, password, port, client_id);
+  ESP.restart();
+}
+
+void save_settings_mqtt(String address, String user, String password, uint16_t port, String client_id){
+  members.begin(NAME_CONFIG_MQTT);
+  members.putString("address", address);
+  members.putString("user", user);
+  members.putString("password", password);
+  members.putString("client_id", client_id);
+  members.putInt("port", port);
+  members.end();
+}
