@@ -1,4 +1,4 @@
-#include "template.h"
+#include "stifler_wifi.h"
 #include "html_content.h"
 
 bool flag_led_status = false;

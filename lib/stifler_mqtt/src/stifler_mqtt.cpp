@@ -10,15 +10,20 @@ std::map<String, const char*> sub_topics;
 std::map<const char*, std::function<void()>> handlers;
 GTimer<millis> tmr_mqtt_loop(1000, true, GTMode::Interval);
 
+/**
+ * структура хранит данные о брокере
+ */
 struct Subscribe_data
 {
     String login;
     String password;
     String address;
-    uint16_t port;
-    // String topics[];
+    uint16_t port;    
 }sub_data;
 
+/**
+ * получаем данные о брокере из flash памяти
+ */
 void get_settings(){
     if (flash.begin(NAME_CONFIG_MQTT, true)){
         sub_data.address = flash.getString("address", "");
@@ -31,6 +36,11 @@ void get_settings(){
     } 
 }
 
+/**
+ * обрабатываем входящие сообщения с топиков на которые мы подписаны
+ * 
+ * если при регистрации топика отправили функцию которую надо выполнить то она запускается
+ */
 void callback(char* topic, byte* payload, unsigned int length) {  
   String message;
   for (int i = 0; i < length; i++) {    
@@ -46,6 +56,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
+
 void init_brocker(){
     get_settings();
     client.setServer(sub_data.address.c_str(), sub_data.port);
@@ -58,12 +69,9 @@ void subscribe_topics(){
     }
 }
 
-void reconnect() {
-  // Цикл, пока не подключимся
-  if (!client.connected()) {    
-    // Попытка подключения
-    if (client.connect("my_id", sub_data.login.c_str(), sub_data.password.c_str())) {         
-      // Отправляем первое сообщение о статусе      
+void reconnect() {  
+  if (!client.connected()) {        
+    if (client.connect("my_id", sub_data.login.c_str(), sub_data.password.c_str())) {               
       client.publish(pub_topics["connect"], "ON");
       subscribe_topics();
     }
