@@ -1,10 +1,13 @@
 #include "stifler_mqtt.h"
 #include <WiFi.h>
 
+
 WiFiClient espClient;
 PubSubClient client(espClient);
 Preferences flash;
-std::map<String, String> pub_topics;
+std::map<String, const char*> pub_topics;
+std::map<String, const char*> sub_topics;
+std::map<const char*, std::function<void()>> handlers;
 GTimer<millis> tmr_mqtt_loop(1000, true, GTMode::Interval);
 
 struct Subscribe_data
@@ -28,16 +31,19 @@ void get_settings(){
     } 
 }
 
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Сообщение получено от топика: ");
-  Serial.println(topic);
-  
-  // Вывод содержимого сообщения
-  Serial.print("Содержимое: ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
+void callback(char* topic, byte* payload, unsigned int length) {  
+  String message;
+  for (int i = 0; i < length; i++) {    
+    message += (char)payload[i];
+  }  
+
+  for (const auto&pair: handlers){    
+    if (String(pair.first) == String(topic)){
+        if (pair.second != nullptr){
+            pair.second();
+        }        
+    }
   }
-  Serial.println();
 }
 
 void init_brocker(){
@@ -46,13 +52,20 @@ void init_brocker(){
     client.setCallback(callback);
 }
 
+void subscribe_topics(){
+    for (const auto& pair : sub_topics){        
+        client.subscribe(pair.second);
+    }
+}
+
 void reconnect() {
   // Цикл, пока не подключимся
   if (!client.connected()) {    
     // Попытка подключения
     if (client.connect("my_id", sub_data.login.c_str(), sub_data.password.c_str())) {         
       // Отправляем первое сообщение о статусе      
-      client.publish(pub_topics["connect"].c_str(), "ON");
+      client.publish(pub_topics["connect"], "ON");
+      subscribe_topics();
     }
   }
 }
@@ -61,8 +74,14 @@ void loop_mqtt(){
     if (tmr_mqtt_loop && !client.connected()){
         reconnect();
     }
+    client.loop();
 }
 
-void add_pub_topic(String name_topic, String topic){
+void add_pub_topic(String name_topic, const char* topic){
     pub_topics[name_topic] = topic;
+}
+
+void add_sub_topic(String name_topic, const char* topic, std::function<void()> handler){
+    sub_topics[name_topic] = topic;
+    handlers[topic] = handler;
 }

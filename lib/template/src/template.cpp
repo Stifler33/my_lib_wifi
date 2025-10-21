@@ -154,6 +154,7 @@ void reset_loop(){
     if (is_press_btn_reset()){
       led_off();
       save_config_wifi("", "", "", WIFI_AP);
+      save_settings_mqtt("", "", "", 1883, "");
       ESP.restart();
     }    
   }
@@ -162,24 +163,28 @@ void reset_loop(){
 /**
  * Цикл для отслеживания подключения к Wifi и OTA
  */
-void loop_status_wifi(){
+bool loop_status_wifi(){
   reset_loop();
   switch (WiFi.getMode())
   {
   case WIFI_STA:    
     if (WiFi.status() != WL_CONNECTED){
-      blink_led(100);      
+      blink_led(100); 
+      return false;     
     }else{
       led_on();
       server.handleClient();
       ArduinoOTA.handle();
     }
+    return true;
     break;
   case WIFI_AP:
     server.handleClient();
     blink_led(500);
+    return false;
     break;
   default:
+    return false;
     break;
   }
 }
