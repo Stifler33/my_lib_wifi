@@ -7,7 +7,7 @@ PubSubClient client(espClient);
 Preferences flash;
 std::map<String, const char*> pub_topics;
 std::map<String, const char*> sub_topics;
-std::map<const char*, std::function<void()>> handlers;
+std::map<const char*, std::function<void(String)>> handlers;
 GTimer<millis> tmr_mqtt_loop(1000, true, GTMode::Interval);
 
 struct Subscribe_data
@@ -40,7 +40,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   for (const auto&pair: handlers){    
     if (String(pair.first) == String(topic)){
         if (pair.second != nullptr){
-            pair.second();
+            pair.second(message);
         }        
     }
   }
@@ -81,7 +81,7 @@ void add_pub_topic(String name_topic, const char* topic){
     pub_topics[name_topic] = topic;
 }
 
-void add_sub_topic(String name_topic, const char* topic, std::function<void()> handler){
+void add_sub_topic(String name_topic, const char* topic, std::function<void(String)> handler){
     sub_topics[name_topic] = topic;
     handlers[topic] = handler;
 }
