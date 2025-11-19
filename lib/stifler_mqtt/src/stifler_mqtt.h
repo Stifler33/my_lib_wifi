@@ -14,3 +14,4 @@ void add_sub_topic(String name_topic, const char* topic, std::function<void()> h
 // void add_handler(const char* topic, std::function<void()> handler);
 void init_brocker();
 void loop_mqtt();
+void public_data(String name_topic, const char* payload);
