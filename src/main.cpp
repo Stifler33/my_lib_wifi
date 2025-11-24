@@ -1,4 +1,4 @@
-#include <template.h>
+#include <stifler_wifi.h>
 #include <stifler_mqtt.h>
 
 #define PIN_RELAY 4
