@@ -7,23 +7,18 @@ PubSubClient client(espClient);
 Preferences flash;
 std::map<String, const char*> pub_topics;
 std::map<String, const char*> sub_topics;
-std::map<const char*, std::function<void()>> handlers;
+std::map<const char*, std::function<void(String)>> handlers;
 GTimer<millis> tmr_mqtt_loop(1000, true, GTMode::Interval);
 
-/**
- * структура хранит данные о брокере
- */
 struct Subscribe_data
 {
     String login;
     String password;
     String address;
-    uint16_t port;    
+    uint16_t port;
+    // String topics[];
 }sub_data;
 
-/**
- * получаем данные о брокере из flash памяти
- */
 void get_settings(){
     if (flash.begin(NAME_CONFIG_MQTT, true)){
         sub_data.address = flash.getString("address", "");
@@ -36,11 +31,6 @@ void get_settings(){
     } 
 }
 
-/**
- * обрабатываем входящие сообщения с топиков на которые мы подписаны
- * 
- * если при регистрации топика отправили функцию которую надо выполнить то она запускается
- */
 void callback(char* topic, byte* payload, unsigned int length) {  
   String message;
   for (int i = 0; i < length; i++) {    
@@ -50,12 +40,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
   for (const auto&pair: handlers){    
     if (String(pair.first) == String(topic)){
         if (pair.second != nullptr){
-            pair.second();
+            pair.second(message);
         }        
     }
   }
 }
-
 
 void init_brocker(){
     get_settings();
@@ -70,26 +59,38 @@ void subscribe_topics(){
 }
 
 void reconnect() {  
-  if (!client.connected()) {        
-    if (client.connect("my_id", sub_data.login.c_str(), sub_data.password.c_str())) {               
+  if (!client.connected()) {    
+    // Попытка подключения
+    if (client.connect("my_id", sub_data.login.c_str(), sub_data.password.c_str())) {         
+      // Отправляем первое сообщение о статусе      
       client.publish(pub_topics["connect"], "ON");
       subscribe_topics();
     }
   }
 }
 
-void loop_mqtt(){
+bool loop_mqtt(){
     if (tmr_mqtt_loop && !client.connected()){
         reconnect();
     }
-    client.loop();
+    return client.loop();
 }
 
 void add_pub_topic(String name_topic, const char* topic){
     pub_topics[name_topic] = topic;
 }
 
-void add_sub_topic(String name_topic, const char* topic, std::function<void()> handler){
+void add_sub_topic(String name_topic, const char* topic, std::function<void(String)> handler){
     sub_topics[name_topic] = topic;
     handlers[topic] = handler;
+}
+
+void public_data(String name_topic, const char* payload){
+    if (pub_topics.count(name_topic)){
+        client.publish(pub_topics[name_topic], payload, true);
+    }
+}
+
+void unsubscribe(const char *topic){
+    client.unsubscribe(topic);
 }

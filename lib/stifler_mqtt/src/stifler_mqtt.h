@@ -11,30 +11,33 @@ extern std::map<String, const char*> pub_topics;
 extern std::map<String, const char*> sub_topics;
 
 /**
- * сохраняем топик для публикации в него данных
+ * сохраняем топик для отправки в него данных
  * @param name_topic короткое имя топика
- * @param topic полное имя топика используемое для публикации сообщения
+ * @param topic полное имя топика
  */
 void add_pub_topic(String name_topic, const char* topic);
 
 /**
- * указываем на какой топик надо подписаться и какое действие надо выполнить 
- * 
- * если получили сообщение в этом топике
- * @param name_topic короткое имя топика
- * @param topic полное имя топика на который будет подписка
- * @param handler функция типа void() которая будет выполняться. функция не должна ничего возвращать, и не должна иметь параметров
+ * сохраняем топики из которых мы получаем разные данные или команды
+ * @param name_toic короткое имя топика
+ * @param topic полное имя топика 
+ * @param handler функция формата void(String) которая выполниется при поступлении данных в этот топик
  */
-void add_sub_topic(String name_topic, const char* topic, std::function<void()> handler=nullptr);
+void add_sub_topic(String name_topic, const char* topic, std::function<void(String)> handler=nullptr);
+// void add_handler(const char* topic, std::function<void()> handler);
 
-/**
- * Функция запускает mqtt клиента
- * 
- * данные берет из flash памяти
- */
 void init_brocker();
+bool loop_mqtt();
 
 /**
- * основной цикл работы mqtt сервера
+ * Отправляем данные на сервер по имени топика который сохранили функцией add_pub_topic
+ * @param name_topic имя топика
+ * @param payload сообщение в текстовом формате
  */
-void loop_mqtt();
+void public_data(String name_topic, const char* payload);
+
+/**
+ * Отписываемся от топика
+ * @param topic полное название топика
+ */
+void unsubscribe(const char *topic);
